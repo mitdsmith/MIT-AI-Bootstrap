@@ -17,6 +17,7 @@ param(
     [string]$RepoBranch = "main",
     [string]$CheckoutDir = "$env:USERPROFILE\MIT-AI",
     [string]$Distro = "Ubuntu-24.04",
+    [string]$LinuxUser = "",
     [switch]$SkipVSCodeInstall
 )
 
@@ -167,6 +168,9 @@ $installArgs = @{
     Distro = $Distro
     WrapperRepoUrl = $RepoUrl
     WrapperRepoBranch = $RepoBranch
+}
+if (-not [string]::IsNullOrWhiteSpace($LinuxUser)) {
+    $installArgs.LinuxUser = $LinuxUser
 }
 if ($SkipVSCodeInstall) {
     $installArgs.SkipVSCodeInstall = $true
