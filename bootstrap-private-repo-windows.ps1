@@ -147,7 +147,9 @@ function Sync-PrivateRepo {
     }
 
     Write-Step "Cloning private MIT-AI repository"
-    Write-Host "If prompted, enter your GitHub username and paste a PAT token as the password."
+    Write-Host "If prompted, enter your GitHub username and paste a GitHub Personal Access Token (PAT) as the password."
+    Write-Host "Create a token here if needed: https://github.com/settings/tokens/new"
+    Write-Host "Recommended scopes for this private repo flow: repo and read:org"
     Invoke-Git $GitExe clone --branch $Branch $Repo $Destination
 }
 
