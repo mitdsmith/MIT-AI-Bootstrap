@@ -155,21 +155,20 @@ function Ensure-GhInstalled {
     }
 
     Write-Step "Installing GitHub CLI"
-    $wingetLog = Join-Path ([System.IO.Path]::GetTempPath()) ("mit-ai-gh-install-{0}.log" -f [System.Guid]::NewGuid().ToString("N"))
+    $wingetOutLog = Join-Path ([System.IO.Path]::GetTempPath()) ("mit-ai-gh-install-out-{0}.log" -f [System.Guid]::NewGuid().ToString("N"))
+    $wingetErrLog = Join-Path ([System.IO.Path]::GetTempPath()) ("mit-ai-gh-install-err-{0}.log" -f [System.Guid]::NewGuid().ToString("N"))
     $proc = Start-Process -FilePath "winget.exe" -ArgumentList @(
         "install", "--id", "GitHub.cli", "-e", "--source", "winget",
         "--accept-package-agreements", "--accept-source-agreements"
-    ) -Wait -PassThru -NoNewWindow -RedirectStandardOutput $wingetLog -RedirectStandardError $wingetLog
+    ) -Wait -PassThru -NoNewWindow -RedirectStandardOutput $wingetOutLog -RedirectStandardError $wingetErrLog
     if ($proc.ExitCode -ne 0) {
-        if (Test-Path $wingetLog) {
-            Get-Content $wingetLog | Write-Host
-        }
+        if (Test-Path $wingetOutLog) { Get-Content $wingetOutLog | Write-Host }
+        if (Test-Path $wingetErrLog) { Get-Content $wingetErrLog | Write-Host }
         return $null
     }
 
-    if (Test-Path $wingetLog) {
-        Remove-Item $wingetLog -Force -ErrorAction SilentlyContinue
-    }
+    if (Test-Path $wingetOutLog) { Remove-Item $wingetOutLog -Force -ErrorAction SilentlyContinue }
+    if (Test-Path $wingetErrLog) { Remove-Item $wingetErrLog -Force -ErrorAction SilentlyContinue }
 
     return (Get-GhCommand)
 }
@@ -179,8 +178,9 @@ function Ensure-GitHubAuth {
 
     $ghExe = Ensure-GhInstalled
     if ($ghExe) {
-        $ghStatusLog = Join-Path ([System.IO.Path]::GetTempPath()) ("mit-ai-gh-status-{0}.log" -f [System.Guid]::NewGuid().ToString("N"))
-        $ghStatusProc = Start-Process -FilePath $ghExe -ArgumentList @("auth", "status") -Wait -PassThru -NoNewWindow -RedirectStandardOutput $ghStatusLog -RedirectStandardError $ghStatusLog
+        $ghStatusOutLog = Join-Path ([System.IO.Path]::GetTempPath()) ("mit-ai-gh-status-out-{0}.log" -f [System.Guid]::NewGuid().ToString("N"))
+        $ghStatusErrLog = Join-Path ([System.IO.Path]::GetTempPath()) ("mit-ai-gh-status-err-{0}.log" -f [System.Guid]::NewGuid().ToString("N"))
+        $ghStatusProc = Start-Process -FilePath $ghExe -ArgumentList @("auth", "status") -Wait -PassThru -NoNewWindow -RedirectStandardOutput $ghStatusOutLog -RedirectStandardError $ghStatusErrLog
         if ($ghStatusProc.ExitCode -ne 0) {
             Write-Step "Signing in to GitHub via browser"
             Write-Host "A browser/device login flow should open. Sign in there, then return here."
@@ -190,9 +190,8 @@ function Ensure-GitHubAuth {
             }
         }
 
-        if (Test-Path $ghStatusLog) {
-            Remove-Item $ghStatusLog -Force -ErrorAction SilentlyContinue
-        }
+        if (Test-Path $ghStatusOutLog) { Remove-Item $ghStatusOutLog -Force -ErrorAction SilentlyContinue }
+        if (Test-Path $ghStatusErrLog) { Remove-Item $ghStatusErrLog -Force -ErrorAction SilentlyContinue }
 
         Write-Step "Configuring Git to use GitHub CLI credentials"
         & $ghExe auth setup-git
