@@ -4,8 +4,8 @@ Public-safe Windows bootstrap for a private MonrealIT MIT repo.
 Intended use:
 - Host this single file somewhere public
 - Keep the main MIT-AI repository private
-- Users run this file; it installs Git if needed, clones/updates the private repo,
-  then runs install-monrealit-ai-wsl.ps1 from that private checkout
+- Users run this file; it installs Git/GitHub CLI if needed, authenticates to GitHub,
+  clones/updates the private repo, then runs install-monrealit-ai-wsl.ps1 from that private checkout
 
 Example:
   powershell -ExecutionPolicy Bypass -Command "iwr https://raw.githubusercontent.com/mitdsmith/MIT-AI-Bootstrap/main/bootstrap-private-repo-windows.ps1 -UseBasicParsing | iex"
@@ -120,6 +120,80 @@ function Ensure-GitCredentialHelper {
     }
 }
 
+function Get-GhCommand {
+    $candidates = @(
+        (Get-Command gh -ErrorAction SilentlyContinue),
+        (Get-Command gh.exe -ErrorAction SilentlyContinue)
+    ) | Where-Object { $null -ne $_ }
+
+    if ($candidates) {
+        return $candidates[0].Source
+    }
+
+    $pathCandidates = @(
+        "C:\Program Files\GitHub CLI\gh.exe",
+        (Join-Path $env:LOCALAPPDATA "Programs\GitHub CLI\gh.exe")
+    )
+
+    foreach ($candidate in $pathCandidates) {
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path $candidate)) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+function Ensure-GhInstalled {
+    $ghExe = Get-GhCommand
+    if ($ghExe) {
+        return $ghExe
+    }
+
+    if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
+        return $null
+    }
+
+    Write-Step "Installing GitHub CLI"
+    & winget.exe install --id GitHub.cli -e --source winget --accept-package-agreements --accept-source-agreements
+    if ($LASTEXITCODE -ne 0) {
+        return $null
+    }
+
+    return (Get-GhCommand)
+}
+
+function Ensure-GitHubAuth {
+    param([Parameter(Mandatory = $true)][string]$GitExe)
+
+    $ghExe = Ensure-GhInstalled
+    if ($ghExe) {
+        & $ghExe auth status 1>$null 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Step "Signing in to GitHub via browser"
+            Write-Host "A browser/device login flow should open. Sign in there, then return here."
+            & $ghExe auth login --hostname github.com --git-protocol https --web
+            if ($LASTEXITCODE -ne 0) {
+                throw "GitHub CLI login failed."
+            }
+        }
+
+        Write-Step "Configuring Git to use GitHub CLI credentials"
+        & $ghExe auth setup-git
+        if ($LASTEXITCODE -ne 0) {
+            throw "GitHub CLI could not configure git credentials."
+        }
+        return
+    }
+
+    Ensure-GitCredentialHelper -GitExe $GitExe
+    Write-Step "Cloning private MIT-AI repository"
+    Write-Host "GitHub CLI is unavailable, so git will prompt for credentials."
+    Write-Host "Enter your GitHub username and paste a GitHub Personal Access Token (PAT) as the password."
+    Write-Host "Create a token here if needed: https://github.com/settings/tokens/new"
+    Write-Host "Recommended scopes for this private repo flow: repo and read:org"
+}
+
 function Sync-PrivateRepo {
     param(
         [Parameter(Mandatory = $true)][string]$GitExe,
@@ -147,9 +221,6 @@ function Sync-PrivateRepo {
     }
 
     Write-Step "Cloning private MIT-AI repository"
-    Write-Host "If prompted, enter your GitHub username and paste a GitHub Personal Access Token (PAT) as the password."
-    Write-Host "Create a token here if needed: https://github.com/settings/tokens/new"
-    Write-Host "Recommended scopes for this private repo flow: repo and read:org"
     Invoke-Git $GitExe clone --branch $Branch $Repo $Destination
 }
 
@@ -157,7 +228,7 @@ $git = Ensure-GitInstalled
 if ([string]::IsNullOrWhiteSpace($git)) {
     throw "Git could not be located after installation. Reopen PowerShell and rerun this bootstrap."
 }
-Ensure-GitCredentialHelper -GitExe $git
+Ensure-GitHubAuth -GitExe $git
 Sync-PrivateRepo -GitExe $git -Repo $RepoUrl -Branch $RepoBranch -Destination $CheckoutDir
 
 $repoInstaller = Join-Path $CheckoutDir "install-monrealit-ai-wsl.ps1"
