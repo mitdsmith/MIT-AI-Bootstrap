@@ -155,9 +155,20 @@ function Ensure-GhInstalled {
     }
 
     Write-Step "Installing GitHub CLI"
-    & winget.exe install --id GitHub.cli -e --source winget --accept-package-agreements --accept-source-agreements
-    if ($LASTEXITCODE -ne 0) {
+    $wingetLog = Join-Path ([System.IO.Path]::GetTempPath()) ("mit-ai-gh-install-{0}.log" -f [System.Guid]::NewGuid().ToString("N"))
+    $proc = Start-Process -FilePath "winget.exe" -ArgumentList @(
+        "install", "--id", "GitHub.cli", "-e", "--source", "winget",
+        "--accept-package-agreements", "--accept-source-agreements"
+    ) -Wait -PassThru -NoNewWindow -RedirectStandardOutput $wingetLog -RedirectStandardError $wingetLog
+    if ($proc.ExitCode -ne 0) {
+        if (Test-Path $wingetLog) {
+            Get-Content $wingetLog | Write-Host
+        }
         return $null
+    }
+
+    if (Test-Path $wingetLog) {
+        Remove-Item $wingetLog -Force -ErrorAction SilentlyContinue
     }
 
     return (Get-GhCommand)
