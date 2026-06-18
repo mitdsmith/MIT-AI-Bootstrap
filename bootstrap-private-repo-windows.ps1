@@ -271,8 +271,6 @@ if (-not (Test-Path $repoInstaller)) {
 Write-Step "Running MonrealIT installer from private repo"
 $installArgs = @{
     Distro = $Distro
-    WrapperRepoUrl = $RepoUrl
-    WrapperRepoBranch = $RepoBranch
 }
 if (-not [string]::IsNullOrWhiteSpace($LinuxUser)) {
     $installArgs.LinuxUser = $LinuxUser
