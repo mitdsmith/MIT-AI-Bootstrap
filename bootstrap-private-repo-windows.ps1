@@ -110,7 +110,9 @@ function Ensure-GitInstalled {
 function Ensure-GitCredentialHelper {
     param([Parameter(Mandatory = $true)][string]$GitExe)
 
-    $helper = (& $GitExe config --global credential.helper 2>$null).Trim()
+    $helperOutput = & $GitExe config --global credential.helper 2>$null
+    $helper = if ($null -eq $helperOutput) { "" } else { [string]$helperOutput }
+    $helper = $helper.Trim()
     if ([string]::IsNullOrWhiteSpace($helper)) {
         Write-Step "Configuring Git credential storage"
         Invoke-Git $GitExe config --global credential.helper store
