@@ -179,14 +179,19 @@ function Ensure-GitHubAuth {
 
     $ghExe = Ensure-GhInstalled
     if ($ghExe) {
-        & $ghExe auth status 1>$null 2>$null
-        if ($LASTEXITCODE -ne 0) {
+        $ghStatusLog = Join-Path ([System.IO.Path]::GetTempPath()) ("mit-ai-gh-status-{0}.log" -f [System.Guid]::NewGuid().ToString("N"))
+        $ghStatusProc = Start-Process -FilePath $ghExe -ArgumentList @("auth", "status") -Wait -PassThru -NoNewWindow -RedirectStandardOutput $ghStatusLog -RedirectStandardError $ghStatusLog
+        if ($ghStatusProc.ExitCode -ne 0) {
             Write-Step "Signing in to GitHub via browser"
             Write-Host "A browser/device login flow should open. Sign in there, then return here."
             & $ghExe auth login --hostname github.com --git-protocol https --web
             if ($LASTEXITCODE -ne 0) {
                 throw "GitHub CLI login failed."
             }
+        }
+
+        if (Test-Path $ghStatusLog) {
+            Remove-Item $ghStatusLog -Force -ErrorAction SilentlyContinue
         }
 
         Write-Step "Configuring Git to use GitHub CLI credentials"
