@@ -40,12 +40,31 @@ function Get-GitCommand {
 
     $pathCandidates = @(
         "C:\Program Files\Git\bin\git.exe",
-        "C:\Program Files\Git\cmd\git.exe"
+        "C:\Program Files\Git\cmd\git.exe",
+        "C:\Program Files (x86)\Git\bin\git.exe",
+        "C:\Program Files (x86)\Git\cmd\git.exe",
+        (Join-Path $env:LOCALAPPDATA "Programs\Git\bin\git.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\Git\cmd\git.exe")
     )
 
     foreach ($candidate in $pathCandidates) {
-        if (Test-Path $candidate) {
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path $candidate)) {
             return $candidate
+        }
+    }
+
+    $searchRoots = @(
+        $env:ProgramFiles,
+        ${env:ProgramFiles(x86)},
+        $env:LOCALAPPDATA
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and (Test-Path $_) }
+
+    foreach ($root in $searchRoots) {
+        $match = Get-ChildItem -Path $root -Filter git.exe -File -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\Git\\(cmd|bin)\\git\.exe$' } |
+            Select-Object -First 1
+        if ($match) {
+            return $match.FullName
         }
     }
 
@@ -130,6 +149,9 @@ function Sync-PrivateRepo {
 }
 
 $git = Ensure-GitInstalled
+if ([string]::IsNullOrWhiteSpace($git)) {
+    throw "Git could not be located after installation. Reopen PowerShell and rerun this bootstrap."
+}
 Ensure-GitCredentialHelper -GitExe $git
 Sync-PrivateRepo -GitExe $git -Repo $RepoUrl -Branch $RepoBranch -Destination $CheckoutDir
 
