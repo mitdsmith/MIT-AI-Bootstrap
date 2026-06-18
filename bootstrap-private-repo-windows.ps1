@@ -180,6 +180,12 @@ function Ensure-GitHubAuth {
     if (-not [string]::IsNullOrWhiteSpace($gitDir) -and $env:PATH -notlike "*$gitDir*") {
         $env:PATH = "$gitDir;$env:PATH"
     }
+    $gitRoot = Split-Path -Parent $gitDir
+    foreach ($extraGitDir in @((Join-Path $gitRoot "cmd"), (Join-Path $gitRoot "bin"))) {
+        if ((Test-Path $extraGitDir) -and $env:PATH -notlike "*$extraGitDir*") {
+            $env:PATH = "$extraGitDir;$env:PATH"
+        }
+    }
 
     $ghExe = Ensure-GhInstalled
     if ($ghExe) {
@@ -203,9 +209,9 @@ function Ensure-GitHubAuth {
         $setupGitErrLog = Join-Path ([System.IO.Path]::GetTempPath()) ("mit-ai-gh-setup-git-err-{0}.log" -f [System.Guid]::NewGuid().ToString("N"))
         $setupGitProc = Start-Process -FilePath $ghExe -ArgumentList @("auth", "setup-git") -Wait -PassThru -NoNewWindow -RedirectStandardOutput $setupGitOutLog -RedirectStandardError $setupGitErrLog
         if ($setupGitProc.ExitCode -ne 0) {
-            if (Test-Path $setupGitOutLog) { Get-Content $setupGitOutLog | Write-Host }
-            if (Test-Path $setupGitErrLog) { Get-Content $setupGitErrLog | Write-Host }
-            throw "GitHub CLI could not configure git credentials."
+            Write-Host "GitHub CLI could not auto-run setup-git; configuring git credential helper directly."
+            $helperValue = "!`"$ghExe`" auth git-credential"
+            Invoke-Git $GitExe config --global credential.https://github.com.helper $helperValue
         }
         if (Test-Path $setupGitOutLog) { Remove-Item $setupGitOutLog -Force -ErrorAction SilentlyContinue }
         if (Test-Path $setupGitErrLog) { Remove-Item $setupGitErrLog -Force -ErrorAction SilentlyContinue }
